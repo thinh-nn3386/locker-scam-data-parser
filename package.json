@@ -1,0 +1,23 @@
+{
+  "name": "scam-data",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean:all": "npm run build && node dist/index.js --all",
+    "clean:sola": "npm run build && node dist/index.js sola.csv",
+    "clean:cleancall": "npm run build && node dist/index.js CleanCall.csv",
+    "clean:ntrust": "npm run build && node dist/index.js --multiple ntrust_part1.csv ntrust_part2.csv ntrust_part3.csv",
+    "clean:legacy": "npm run build && node dist/Cleaner.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "dependencies": {
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0"
+  }
+}
