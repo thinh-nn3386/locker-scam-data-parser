@@ -14,7 +14,7 @@ const FILE_CONFIGS = {
         numberField: 'number',
         typeField: 'fullName'
     },
-    'CleanCall.csv': {
+    'clean_call.csv': {
         numberField: 'phone_number',
         typeField: 'name'
     },

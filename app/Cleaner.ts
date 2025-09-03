@@ -50,7 +50,7 @@ const FILE_CONFIGS: Record<string, FileConfig> = {
     numberField: 'number',
     typeField: 'fullName'
   },
-  'CleanCall.csv': {
+  'clean_call.csv': {
     numberField: 'phone_number',
     typeField: 'name'
   },
