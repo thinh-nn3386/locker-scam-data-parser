@@ -42,31 +42,38 @@ export const validateVietnamesePhoneNumber = (phoneNumber: string): boolean => {
 }
 
 /**
- * Formats a Vietnamese phone number to a standard format
+ * Formats a Vietnamese phone number to a standard format (84xxxxxxxxx)
+ * For invalid phone numbers, returns the original string but cleaned
  * @param phoneNumber - The phone number to format
- * @returns string - Formatted phone number or original string if invalid
+ * @returns string - Formatted phone number as 84xxxxxxxxx format
  */
 export const formatVietnamesePhoneNumber = (phoneNumber: string): string => {
-  if (!validateVietnamesePhoneNumber(phoneNumber)) {
+  if (!phoneNumber || typeof phoneNumber !== "string") {
     return phoneNumber
   }
 
+  // Remove all spaces, dots, dashes, and parentheses
   const cleanNumber = phoneNumber.replace(/[\s.\-()]/g, "")
 
-  // If it starts with +84, format as 84xxxxxxxxx
-  if (cleanNumber.startsWith("+84")) {
-    return cleanNumber.substring(1)
+  // If it's a valid Vietnamese phone number, format it properly
+  if (validateVietnamesePhoneNumber(phoneNumber)) {
+    // If it starts with +84, format as 84xxxxxxxxx
+    if (cleanNumber.startsWith("+84")) {
+      return cleanNumber.substring(1)
+    }
+
+    // If it starts with 84, format as 84xxxxxxxxx
+    if (cleanNumber.startsWith("84")) {
+      return cleanNumber
+    }
+
+    // If it starts with 0, format as 84xxxxxxxxx (both mobile and landline)
+    if (cleanNumber.startsWith("0")) {
+      return `84${cleanNumber.substring(1)}`
+    }
   }
 
-  // If it starts with 84, format as 84xxxxxxxxx
-  if (cleanNumber.startsWith("84")) {
-    return cleanNumber
-  }
-
-  // If it starts with 0, format as 84xxxxxxxxx (both mobile and landline)
-  if (cleanNumber.startsWith("0")) {
-    return `84${cleanNumber.substring(1)}`
-  }
-
-  return phoneNumber
+  // For non-standard or invalid numbers, return cleaned version
+  // This handles short numbers, special codes, etc.
+  return cleanNumber
 }

@@ -1,6 +1,8 @@
 import { createReadStream, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import csv from 'csv-parser';
+import { validateVietnamesePhoneNumber, formatVietnamesePhoneNumber } from './utils';
+import { classifyScamType, getScamTypeDescription, ScamPhoneType } from './ScamType';
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
 interface SolaRecord {
@@ -32,6 +34,7 @@ interface NtrustRecord {
 interface OutputRecord {
   number: string;
   type: string;
+  locker_type: string;
 }
 
 type InputRecord = SolaRecord | CleanCallRecord | NtrustRecord;
@@ -93,6 +96,12 @@ class Cleaner {
 
       const outputFilePath = join(this.outputDir, this.outputFileName);
       const records: OutputRecord[] = [];
+      let validPhoneCount = 0;
+      let invalidPhoneCount = 0;
+      let skippedRows = 0;
+      
+      // Statistics for type classification
+      const typeStats: Record<string, number> = {};
 
       // Read and process CSV
       await new Promise<void>((resolve, reject) => {
@@ -105,17 +114,62 @@ class Cleaner {
             
             // Skip rows with missing required fields
             if (!numberValue || !typeValue) {
+              skippedRows++;
               return;
             }
 
+            // Validate phone number first
+            const isValidPhone = validateVietnamesePhoneNumber(numberValue.toString());
+            
+            // Skip invalid phone numbers entirely
+            if (!isValidPhone) {
+              invalidPhoneCount++;
+              skippedRows++;
+              return;
+            }
+
+            // Only process valid phone numbers
+            validPhoneCount++;
+            const formattedNumber = formatVietnamesePhoneNumber(numberValue.toString());
+            
+            const processedType = this.config.transformType 
+              ? this.config.transformType(typeValue) 
+              : typeValue;
+
+            // Classify the scam type
+            const classifiedType = classifyScamType(processedType);
+            const typeDescription = getScamTypeDescription(classifiedType);
+            
+            // Count type statistics
+            if (typeStats[classifiedType]) {
+              typeStats[classifiedType]++;
+            } else {
+              typeStats[classifiedType] = 1;
+            }
+
             const cleanedRecord: OutputRecord = {
-              number: numberValue,
-              type: this.config.transformType ? this.config.transformType(typeValue) : typeValue
+              number: formattedNumber,
+              type: processedType,
+              locker_type: classifiedType
             };
+            
             records.push(cleanedRecord);
           })
           .on('end', () => {
-            console.log(`Processed ${records.length} records from ${this.outputFileName}`);
+            console.log(`Processed ${records.length} valid records from ${this.outputFileName}`);
+            console.log(`✅ Valid phone numbers: ${validPhoneCount}`);
+            console.log(`❌ Invalid/Short numbers (skipped): ${invalidPhoneCount}`);
+            console.log(`📊 Total rows skipped: ${skippedRows}`);
+            
+            // Display type classification statistics
+            console.log(`\n📋 Type Classification Statistics:`);
+            Object.entries(typeStats)
+              .sort(([,a], [,b]) => b - a)
+              .forEach(([type, count]) => {
+                const description = getScamTypeDescription(type as ScamPhoneType);
+                console.log(`  ${type}: ${count} (${description})`);
+              });
+              
             resolve();
           })
           .on('error', (error) => {
@@ -128,7 +182,8 @@ class Cleaner {
         path: outputFilePath,
         header: [
           { id: 'number', title: 'number' },
-          { id: 'type', title: 'type' }
+          { id: 'type', title: 'type' },
+          { id: 'locker_type', title: 'locker_type' }
         ]
       });
 

@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs_1 = require("fs");
 const path_1 = require("path");
 const csv_parser_1 = __importDefault(require("csv-parser"));
+const utils_1 = require("./utils");
+const ScamType_1 = require("./ScamType");
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const FILE_CONFIGS = {
     'sola.csv': {
@@ -49,6 +51,11 @@ class Cleaner {
             }
             const outputFilePath = (0, path_1.join)(this.outputDir, this.outputFileName);
             const records = [];
+            let validPhoneCount = 0;
+            let invalidPhoneCount = 0;
+            let skippedRows = 0;
+            // Statistics for type classification
+            const typeStats = {};
             // Read and process CSV
             await new Promise((resolve, reject) => {
                 (0, fs_1.createReadStream)(this.inputFilePath)
@@ -59,16 +66,53 @@ class Cleaner {
                     const typeValue = row[this.config.typeField];
                     // Skip rows with missing required fields
                     if (!numberValue || !typeValue) {
+                        skippedRows++;
                         return;
                     }
+                    // Validate phone number first
+                    const isValidPhone = (0, utils_1.validateVietnamesePhoneNumber)(numberValue.toString());
+                    // Skip invalid phone numbers entirely
+                    if (!isValidPhone) {
+                        invalidPhoneCount++;
+                        skippedRows++;
+                        return;
+                    }
+                    // Only process valid phone numbers
+                    validPhoneCount++;
+                    const formattedNumber = (0, utils_1.formatVietnamesePhoneNumber)(numberValue.toString());
+                    const processedType = this.config.transformType
+                        ? this.config.transformType(typeValue)
+                        : typeValue;
+                    // Classify the scam type
+                    const classifiedType = (0, ScamType_1.classifyScamType)(processedType);
+                    const typeDescription = (0, ScamType_1.getScamTypeDescription)(classifiedType);
+                    // Count type statistics
+                    if (typeStats[classifiedType]) {
+                        typeStats[classifiedType]++;
+                    }
+                    else {
+                        typeStats[classifiedType] = 1;
+                    }
                     const cleanedRecord = {
-                        number: numberValue,
-                        type: this.config.transformType ? this.config.transformType(typeValue) : typeValue
+                        number: formattedNumber,
+                        type: processedType,
+                        locker_type: classifiedType
                     };
                     records.push(cleanedRecord);
                 })
                     .on('end', () => {
-                    console.log(`Processed ${records.length} records from ${this.outputFileName}`);
+                    console.log(`Processed ${records.length} valid records from ${this.outputFileName}`);
+                    console.log(`✅ Valid phone numbers: ${validPhoneCount}`);
+                    console.log(`❌ Invalid/Short numbers (skipped): ${invalidPhoneCount}`);
+                    console.log(`📊 Total rows skipped: ${skippedRows}`);
+                    // Display type classification statistics
+                    console.log(`\n📋 Type Classification Statistics:`);
+                    Object.entries(typeStats)
+                        .sort(([, a], [, b]) => b - a)
+                        .forEach(([type, count]) => {
+                        const description = (0, ScamType_1.getScamTypeDescription)(type);
+                        console.log(`  ${type}: ${count} (${description})`);
+                    });
                     resolve();
                 })
                     .on('error', (error) => {
@@ -80,7 +124,8 @@ class Cleaner {
                 path: outputFilePath,
                 header: [
                     { id: 'number', title: 'number' },
-                    { id: 'type', title: 'type' }
+                    { id: 'type', title: 'type' },
+                    { id: 'locker_type', title: 'locker_type' }
                 ]
             });
             await csvWriter.writeRecords(records);
